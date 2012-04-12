@@ -137,10 +137,12 @@ def main():
         total_time += t
 
     print("Average response time[ms]:", 1000*total_time/total_cnt)
-    print("For each path:")
-    avg_time_by_path.sort(reverse=True)
-    for t,p in avg_time_by_path[:20]:
-        print(t*1000, p)
+    if conf.get('show_report'):
+        ranking = int(conf.get('ranking', 20))
+        print("Average response time for each path (order by longest) [ms]:")
+        avg_time_by_path.sort(reverse=True)
+        for t,p in avg_time_by_path[:ranking]:
+            print(t*1000, p)
 
 
 if __name__ == '__main__':

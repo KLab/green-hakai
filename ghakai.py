@@ -20,6 +20,7 @@ import urlparse
 import time
 import gevent.pool
 import random
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ def hakai(client, conf, V):
         U = select_vars(V)
 
         for action in actions:
-            path = action['path']
+            org_path = path = action['path']
             for k,v in U.iteritems():
                 path = path.replace("%("+k+")%", v)
 
@@ -67,6 +68,8 @@ def hakai(client, conf, V):
             response = client.get(path)
             response.read()
             t = time.time() - t
+            PATH_TIME[org_path] += t
+            PATH_CNT[org_path] += 1
             if response.status_code == 200:
                 SUCC += 1
                 sys.stderr.write('o')
@@ -77,12 +80,14 @@ def hakai(client, conf, V):
                 #print(response, response.status_code)
 
 def main():
-    global NLOOP, SUCC, FAIL
+    global NLOOP, SUCC, FAIL, PATH_TIME, PATH_CNT
     C1 = 1
     C2 = 1
     NLOOP = 1
     SUCC = 0
     FAIL = 0
+    PATH_TIME = defaultdict(int)
+    PATH_CNT = defaultdict(int)
 
     import sys
     conf = load_conf(sys.argv[1])
@@ -112,6 +117,7 @@ def main():
     for _ in xrange(C2):
         group.spawn(hakai, client, conf, vars_)
     group.join(TOTAL_DURATION)
+    print("timeout...", file=sys.stderr)
     group.kill()
     delta = time.time() - now
 
@@ -120,6 +126,22 @@ def main():
     print("request count:%d, concurrenry:%d, %f req/s" % (NREQ, C1, req_per_sec))
     print("SUCCESS", SUCC)
     print("FAILED", FAIL)
+
+    total_cnt = total_time = 0
+
+    avg_time_by_path = []
+    for path,cnt in PATH_CNT.iteritems():
+        t = PATH_TIME[path]
+        avg_time_by_path.append((t/cnt, path))
+        total_cnt += cnt
+        total_time += t
+
+    print("Average response time[ms]:", 1000*total_time/total_cnt)
+    print("For each path:")
+    avg_time_by_path.sort(reverse=True)
+    for t,p in avg_time_by_path[:20]:
+        print(t*1000, p)
+
 
 if __name__ == '__main__':
     main()

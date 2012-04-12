@@ -55,6 +55,8 @@ def hakai(client, conf, V):
         U = select_vars(V)
 
         for action in actions:
+            if STOP:
+                return
             org_path = path = action['path']
             for k,v in U.iteritems():
                 path = path.replace("%("+k+")%", v)
@@ -80,12 +82,13 @@ def hakai(client, conf, V):
                 #print(response, response.status_code)
 
 def main():
-    global NLOOP, SUCC, FAIL, PATH_TIME, PATH_CNT
+    global NLOOP, SUCC, FAIL, PATH_TIME, PATH_CNT, STOP
     C1 = 1
     C2 = 1
     NLOOP = 1
     SUCC = 0
     FAIL = 0
+    STOP = False
     PATH_TIME = defaultdict(int)
     PATH_CNT = defaultdict(int)
 
@@ -118,6 +121,7 @@ def main():
         group.spawn(hakai, client, conf, vars_)
     group.join(TOTAL_DURATION)
     print("timeout...", file=sys.stderr)
+    STOP = True
     group.kill()
     delta = time.time() - now
 

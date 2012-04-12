@@ -1,0 +1,10 @@
+total_duration: 30
+loop: 100
+concurrency: 100
+max_scenario: 200
+log_level: 1
+timeout: 3
+domain: "http://localhost:8889"
+user_agent: "Green Hakai"
+actions: 
+    - path: /

@@ -3,6 +3,11 @@
 
 gevent と geventhttpclient を使ったインターネット破壊の軽量版です。
 
+インターネット破壊に比べてソースが読みやすいので、前回のリクエストの
+レスポンスを使って次のリクエストを投げるようなシナリオを作るなどの
+カスタマイズが簡単です。
+
+
 インストール
 ---------------
 
@@ -19,3 +24,14 @@ ghakai.py を動かすために必要なライブラリを、 virtualenv をつ�
 
 ghakai.py の shebang を、 ``#!$HOME/ghakai/bin/python`` に書き換えてください。
 (もちろん、 ``$HOME`` の部分は各自のホームディレクトリに書き換えてくださいね)
+
+
+HTTPClientについて
+-------------------
+
+Python の標準ライブラリではなく、HTTPヘッダの解析が高速な geventhttpclient の
+HTTPClient を利用しています。
+get, post, put などのメソッドがあるので、それを呼んでください。
+
+https://github.com/gwik/geventhttpclient/blob/master/src/geventhttpclient/client.py
+

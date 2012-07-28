@@ -1,6 +1,6 @@
 total_duration: 3
 loop: 10000000
-concurrency: 8
+max_request: 4
 max_scenario: 200
 show_report: true
 log_level: 1

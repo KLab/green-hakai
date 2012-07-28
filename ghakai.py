@@ -5,7 +5,7 @@ u"""インターネット破壊の gevent 版.
 Ruby の internethakai より機能は少ないですが、 Ruby と gem のセットアップ
 がすぐにできないときはこっちのほうが楽.
 
-    easy_install https://bitbucket.org/denis/gevent/get/tip.tar.gz
+    easy_install http://gevent.googlecode.com/files/gevent-1.0b3.tar.gz
     easy_install https://github.com/gwik/geventhttpclient/tarball/master
     easy_install PyYaml
 """
@@ -15,7 +15,7 @@ from geventhttpclient import HTTPClient, URL
 
 import sys
 import logging
-import urllib, urllib2
+import urllib
 import urlparse
 import time
 import gevent.pool
@@ -100,7 +100,7 @@ def main():
 
     vars_ = load_vars(conf)
 
-    C1 = int(conf.get('concurrency', 1))
+    C1 = int(conf.get('max_request', 1))
     C2 = int(conf.get('max_scenario', C1))
     NLOOP = int(conf.get('loop', 1))
     TOTAL_DURATION = float(conf.get('total_duration', None))

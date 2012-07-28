@@ -100,7 +100,7 @@ def main():
 
     vars_ = load_vars(conf)
 
-    C1 = int(conf.get('concurrency', 1))
+    C1 = int(conf.get('max_request', 1))
     C2 = int(conf.get('max_scenario', C1))
     NLOOP = int(conf.get('loop', 1))
     TOTAL_DURATION = float(conf.get('total_duration', None))

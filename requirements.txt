@@ -1,0 +1,3 @@
+http://gevent.googlecode.com/files/gevent-1.0b3.tar.gz
+PyYaml
+https://github.com/gwik/geventhttpclient/tarball/master

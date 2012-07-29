@@ -22,7 +22,30 @@ import gevent.pool
 import random
 from collections import defaultdict
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+
+class Indicator(object):
+    s = "|/-\\"
+    def __init__(self):
+        self.c = 0
+        self.back = 0
+    def ok(self):
+        if self.back:
+            sys.stdout.write('\b')
+        sys.stdout.write(self.s[self.c])
+        sys.stdout.flush()
+        self.c = (self.c + 1) % 4
+        self.back = 1
+    def ng(self):
+        if self.back:
+            sys.stdout.write('\b')
+        sys.stdout.write('x')
+        sys.stdout.flush()
+        self.back = 0
+
+_indicator = Indicator()
+ok = _indicator.ok
+ng = _indicator.ng
 
 def load_conf(filename):
     import yaml
@@ -57,29 +80,68 @@ def hakai(client, conf, V):
         for action in actions:
             if STOP:
                 return
+
+            method = action.get('method', 'GET')
             org_path = path = action['path']
+
             for k,v in U.iteritems():
                 path = path.replace("%("+k+")%", v)
 
-            if '?' in path:
-                p1, p2 = path.split('?')
-                p2 = urlparse.parse_qsl(p2)
-                p2 = urllib.urlencode(p2)
-                path = p1 + '?' + p2
-            t = time.time()
-            response = client.get(path)
-            response.read()
-            t = time.time() - t
-            PATH_TIME[org_path] += t
-            PATH_CNT[org_path] += 1
-            if response.status_code == 200:
+            body = b''
+            if method == 'POST' and 'post_param' in action:
+                post_param = action['post_param']
+                for k, v in param.items():
+                    v = re.sub('%\((.+?)\)%', lambda m: U.get(m.group(1)), v)
+                    post_param[k] = v
+                body = urllib.urlencode(post_param)
+
+            while 1:
+                if '?' in path:
+                    p1, p2 = path.split('?')
+                    p2 = urlparse.parse_qsl(p2)
+                else:
+                    p1 = path
+                    p2 = []
+
+                if p2:
+                    p2 = urllib.urlencode(p2)
+                    path = p1 + '?' + p2
+                else:
+                    path = p1
+
+                logger.debug("%s %s %s", method, path, body[:100])
+                t = time.time()
+                response = client.get(path)
+                response_body = response.read()
+                t = time.time() - t
+                PATH_TIME[org_path] += t
+                PATH_CNT[org_path] += 1
+
+                # handle redirects.
+                if response.status_code // 10 == 30:
+                    logger.debug("(%.2f[ms]) %s location=%s",
+                            t*1000,
+                            response.status_code, response['location'],
+                            )
+                    method = 'GET'
+                    body = b''
+                    org_path = path = response['location']
+                    continue
+                else:
+                    break
+
+            if response.status_code // 10 == 20:
                 SUCC += 1
-                sys.stderr.write('o')
-                #print(t*1000, response.status_code, path)
+                ok()
+                logger.debug("(%.2f[ms]) %s %s",
+                        t*1000,
+                        response.status_code, response_body[:100])
             else:
                 FAIL += 1
-                sys.stderr.write('x')
-                #print(response, response.status_code)
+                ng()
+                logger.warn("(%.2f[ms]) %s %s",
+                        t*1000,
+                        response.status_code, response_body)
 
 def main():
     global NLOOP, SUCC, FAIL, PATH_TIME, PATH_CNT, STOP
@@ -149,5 +211,19 @@ def main():
             print(t*1000, p)
 
 
+def test_indicator():
+    for _ in xrange(20):
+        ok(); time.sleep(0.1)
+    ng(); time.sleep(0.1)
+    for _ in xrange(20):
+        ok(); time.sleep(0.1)
+    ng(); time.sleep(0.1)
+    for _ in xrange(20):
+        ok(); time.sleep(0.1)
+    ng(); time.sleep(0.1)
+
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(message)s",
+                        )
     main()

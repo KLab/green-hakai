@@ -12,10 +12,11 @@ gevent と geventhttpclient を使ったインターネット破壊の軽量版�
 ---------------
 
 ghakai.py を動かすために必要なライブラリを、 virtualenv をつかって構築する例です。
+``$HOME/ghakai`` に virtualenv を作成し、 ``$HOME/ghakai/bin/python`` を使って
+``ghakai.py`` を実行可能にしています.
 
 ::
 
-    $ wget http://raw.github.com/pypa/virtualenv/master/virtualenv.py
     $ python virtualenv.py $HOME/ghakai
     $ source $HOME/ghakai/bin/activate
     (ghakai)$ pip install -r requirements.txt

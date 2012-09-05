@@ -157,7 +157,7 @@ def main():
     import sys
     conf = load_conf(sys.argv[1])
 
-    loglevel = int(conf.get("log_level"))*10
+    loglevel = int(conf.get("log_level", 3))*10
     logger.setLevel(loglevel)
 
     vars_ = load_vars(conf)
@@ -165,7 +165,7 @@ def main():
     C1 = int(conf.get('max_request', 1))
     C2 = int(conf.get('max_scenario', C1))
     NLOOP = int(conf.get('loop', 1))
-    TOTAL_DURATION = float(conf.get('total_duration', None))
+    TOTAL_DURATION = float(conf.get('total_duration', 0.0)) or None
     USER_AGENT = conf.get('user_agent', 'ghakai')
 
     timeout = float(conf.get('timeout', 10))

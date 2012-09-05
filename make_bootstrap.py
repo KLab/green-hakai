@@ -8,12 +8,7 @@ def after_install(options, home_dir):
     else:
         bin = 'bin'
     pip = os.path.join(home_dir, bin, 'pip')
-    subprocess.call([pip, 'install'] + '''
-        http://gevent.googlecode.com/files/gevent-1.0b3.tar.gz
-        https://github.com/gwik/geventhttpclient/tarball/master
-        PyYaml
-        '''.split()
-        )
+    subprocess.call([pip, 'install', '-r', 'requirements.txt'])
 """
 
 with open('ghakai-bootstrap.py', 'w') as f:

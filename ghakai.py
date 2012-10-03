@@ -4,10 +4,6 @@ u"""インターネット破壊の gevent 版.
 
 Ruby の internethakai より機能は少ないですが、 Ruby と gem のセットアップ
 がすぐにできないときはこっちのほうが楽.
-
-    easy_install http://gevent.googlecode.com/files/gevent-1.0b3.tar.gz
-    easy_install https://github.com/gwik/geventhttpclient/tarball/master
-    easy_install PyYaml
 """
 from __future__ import print_function, division
 
@@ -24,7 +20,10 @@ from collections import defaultdict
 
 logger = logging.getLogger()
 
+
 class Indicator(object):
+    u"""くるくるまわる"""
+
     s = "|/-\\"
     def __init__(self):
         self.c = 0
@@ -157,7 +156,7 @@ def main():
     import sys
     conf = load_conf(sys.argv[1])
 
-    loglevel = int(conf.get("log_level", 3))*10
+    loglevel = conf.get("log_level", 3)*10
     logger.setLevel(loglevel)
 
     vars_ = load_vars(conf)
@@ -171,7 +170,8 @@ def main():
     timeout = float(conf.get('timeout', 10))
     host = conf['domain']
     headers = {'User-Agent': USER_AGENT}
-    client = HTTPClient.from_url(host, concurrency=C1,
+    client = HTTPClient.from_url(host,
+                                 concurrency=C1,
                                  connection_timeout=timeout,
                                  network_timeout=timeout,
                                  headers=headers,

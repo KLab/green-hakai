@@ -86,13 +86,16 @@ def hakai(client, conf, V):
             for k,v in U.iteritems():
                 path = path.replace("%("+k+")%", v)
 
-            body = b''
+            header = {}
             if method == 'POST' and 'post_param' in action:
                 post_param = action['post_param']
-                for k, v in param.items():
+                for k, v in post_param.items():
                     v = re.sub('%\((.+?)\)%', lambda m: U.get(m.group(1)), v)
                     post_param[k] = v
                 body = urllib.urlencode(post_param)
+                header['Content-Type'] = 'application/x-www-form-urlencoded'
+            else:
+                body = b''
 
             while 1:
                 if '?' in path:
@@ -110,7 +113,7 @@ def hakai(client, conf, V):
 
                 logger.debug("%s %s %s", method, path, body[:100])
                 t = time.time()
-                response = client.get(path)
+                response = client.request(method, path, body, header)
                 response_body = response.read()
                 t = time.time() - t
                 PATH_TIME[org_path] += t
@@ -124,6 +127,7 @@ def hakai(client, conf, V):
                             )
                     method = 'GET'
                     body = b''
+                    header = {}
                     org_path = path = response['location']
                     continue
                 else:

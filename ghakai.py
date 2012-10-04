@@ -254,7 +254,7 @@ def main():
                                  headers=headers,
                                  )
 
-    group = gevent.pool.Pool(size=C2)
+    group = gevent.pool.Group()
     now = time.time()
     for _ in xrange(C2):
         group.spawn(hakai, client, conf, vars_)

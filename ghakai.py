@@ -22,25 +22,19 @@ logger = logging.getLogger()
 
 
 class Indicator(object):
-    u"""くるくるまわる"""
 
-    s = "|/-\\"
-    def __init__(self):
+    def __init__(self, skip=10):
+        self.skip = skip
         self.c = 0
-        self.back = 0
+
     def ok(self):
-        if self.back:
-            sys.stdout.write('\b')
-        sys.stdout.write(self.s[self.c])
-        sys.stdout.flush()
-        self.c = (self.c + 1) % 4
-        self.back = 1
+        self.c += 1
+        if self.c >= self.skip:
+            self.c = 0
+            sys.stderr.write('.')
+
     def ng(self):
-        if self.back:
-            sys.stdout.write('\b')
-        sys.stdout.write('x')
-        sys.stdout.flush()
-        self.back = 0
+        sys.stderr.write('x')
 
 _indicator = Indicator()
 ok = _indicator.ok
@@ -213,17 +207,6 @@ def main():
         for t,p in avg_time_by_path[:ranking]:
             print(t*1000, p)
 
-
-def test_indicator():
-    for _ in xrange(20):
-        ok(); time.sleep(0.1)
-    ng(); time.sleep(0.1)
-    for _ in xrange(20):
-        ok(); time.sleep(0.1)
-    ng(); time.sleep(0.1)
-    for _ in xrange(20):
-        ok(); time.sleep(0.1)
-    ng(); time.sleep(0.1)
 
 if __name__ == '__main__':
     logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s")

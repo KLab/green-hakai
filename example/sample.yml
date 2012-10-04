@@ -1,11 +1,32 @@
-total_duration: 3
+total_duration: 10
 loop: 10000000
-max_request: 4
-max_scenario: 200
+max_request: 2
+max_scenario: 100
 show_report: true
-log_level: 1
+log_level: 3
 timeout: 3
 domain: "http://localhost:8889"
 user_agent: "Green Hakai"
+
+vars:
+    - name: var
+      file: var.txt
+exvars:
+    - name: ex
+      file: ex.txt
+consts:
+    c1: c1val
+    c2: c2val
+
+query_param:
+    user: "%(ex)%"
+    c1: "%(c1)%"
+
 actions: 
     - path: /
+    - path: /foo?xxx=yyy
+    - path: /bar
+      method: POST
+      post_param:
+        v: "%(var)%"
+        c2: "%(c2)%"

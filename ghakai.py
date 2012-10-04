@@ -12,6 +12,7 @@ from geventhttpclient import HTTPClient, URL
 
 from collections import defaultdict
 import logging
+import os
 import re
 import sys
 import time
@@ -41,8 +42,12 @@ _indicator = Indicator()
 ok = _indicator.ok
 ng = _indicator.ng
 
+basedir = '.'
+
 
 def load_conf(filename):
+    global basedir
+    basedir = os.path.dirname(filename)
     import yaml
     return yaml.load(open(filename))
 
@@ -53,7 +58,7 @@ def _load_vars(conf, name):
     for var in conf[name]:
         var_name = var['name']
         var_file = var['file']
-        with open(var_file) as f:
+        with open(os.path.join(basedir, var_file)) as f:
             V[var_name] = f.read().splitlines()
     return V
 
@@ -117,7 +122,7 @@ class VarEnv(object):
 
     def __exit__(self, *err):
         for k, v in self._popped.items():
-            self.all_exvars_[k].put(v)
+            self.all_exvars[k].put(v)
 
 
 sub_name = re.compile('%\((.+?)\)%').sub
@@ -202,8 +207,16 @@ def hakai(client, conf, VARS):
     envmgr = VarEnv(VARS)
 
     for _ in xrange(NLOOP):
+        if STOP:
+            break
         with envmgr as vars_:
             run_actions(client, conf, vars_, actions)
+
+def make_exvars(ex):
+    d = {}
+    for k, v in ex.items():
+        d[k] = gevent.queue.Queue(len(v), v)
+    return d
 
 def main():
     global NLOOP, SUCC, FAIL, PATH_TIME, PATH_CNT, STOP
@@ -221,8 +234,6 @@ def main():
     loglevel = conf.get("log_level", 3) * 10
     logger.setLevel(loglevel)
 
-    vars_ = load_vars(conf)
-
     C1 = int(conf.get('max_request', 1))
     C2 = int(conf.get('max_scenario', C1))
     NLOOP = int(conf.get('loop', 1))
@@ -232,6 +243,10 @@ def main():
     timeout = float(conf.get('timeout', 10))
     host = conf['domain']
     headers = {'User-Agent': USER_AGENT}
+
+    c,v,e = load_vars(conf)
+    vars_ = (c, v, make_exvars(e))
+
     client = HTTPClient.from_url(host,
                                  concurrency=C1,
                                  connection_timeout=timeout,

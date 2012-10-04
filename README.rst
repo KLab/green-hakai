@@ -25,12 +25,9 @@ ghakai.py の shebang を、 ``#!$HOME/ghakai/bin/python`` に書き換えてく
 (もちろん、 ``$HOME`` の部分は各自のホームディレクトリに書き換えてくださいね)
 
 
-HTTPClientについて
--------------------
+設定ファイル
+-------------
 
-Python の標準ライブラリではなく、HTTPヘッダの解析が高速な geventhttpclient の
-HTTPClient を利用しています。
-get, post, put などのメソッドがあるので、それを呼んでください。
+Yaml 形式を利用しています。インターネット破壊から一部の仕様を変えています.
 
-https://github.com/gwik/geventhttpclient/blob/master/src/geventhttpclient/client.py
 

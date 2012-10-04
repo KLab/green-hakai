@@ -157,7 +157,6 @@ def main():
     PATH_TIME = defaultdict(int)
     PATH_CNT = defaultdict(int)
 
-    import sys
     conf = load_conf(sys.argv[1])
 
     loglevel = conf.get("log_level", 3)*10
@@ -227,7 +226,5 @@ def test_indicator():
     ng(); time.sleep(0.1)
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s %(levelname)s %(message)s",
-                        )
+    logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s")
     main()

@@ -7,16 +7,17 @@ Ruby の internethakai より機能は少ないですが、 Ruby と gem のセ�
 """
 from __future__ import print_function, division
 
+import gevent.pool
 from geventhttpclient import HTTPClient, URL
 
-import sys
+from collections import defaultdict
 import logging
+import re
+import sys
+import time
 import urllib
 import urlparse
-import time
-import gevent.pool
 import random
-from collections import defaultdict
 
 logger = logging.getLogger()
 
@@ -40,105 +41,169 @@ _indicator = Indicator()
 ok = _indicator.ok
 ng = _indicator.ng
 
+
 def load_conf(filename):
     import yaml
     return yaml.load(open(filename))
 
-def load_vars(conf):
+def _load_vars(conf, name):
+    if name not in conf:
+        return {}
     V = {}
-    if 'vars' not in conf:
-        return V
-    for var in conf['vars']:
-        var_name = var['var_name']
-        var_file = var['var_file']
-        vlist = open(var_file).read().splitlines()
-        V[var_name] = vlist
+    for var in conf[name]:
+        var_name = var['name']
+        var_file = var['file']
+        with open(var_file) as f:
+            V[var_name] = f.read().splitlines()
     return V
 
-def select_vars(VARS):
-    U = {}
-    for k,v in VARS.iteritems():
-        U[k] = random.choice(v)
-    return U
+def load_vars(conf):
+    u"""設定ファイルから3種類の変数を取得する.
+
+    consts は、 Yaml に定義した name: value をそのまま使う.
+    すべてのシナリオ実行で固定した値を用いる.
+
+    vars は、 name の値として file 内の1行の文字列をランダムに選ぶ.
+    1回のシナリオ実行中は固定
+
+    exvars は、 vars と似ているが、並列して実行しているシナリオで
+    重複しないように、値をラウンドロビンで選択する.
+
+        consts:
+            aaa: AAA
+            bbb: BBB
+        vars:
+            -
+                name: foo
+                file: foo.txt
+        exvars:
+            -
+                name: bar
+                file: bar.txt
+    """ 
+    if 'consts' in conf:
+        c = conf['consts']
+    else:
+        c = {}
+    v = _load_vars(conf, 'vars')
+    e = _load_vars(conf, 'exvars')
+    return (c, v, e)
 
 
-def hakai(client, conf, V):
+class VarEnv(object):
+    u"""consts, vars, exvars から、1シナリオ用の変数セットを選択する
+    コンテキストマネージャー.
+    コンテキスト終了時に exvars を返却する.
+    """
+    def __init__(self, VARS):
+        self.consts = VARS[0]
+        self.all_vars = VARS[1]
+        self.all_exvars = VARS[2]
+
+    def _select_vars(self):
+        d = self.consts.copy()
+        for k, v in self.all_vars.items():
+            d[k] = random.choice(v)
+
+        popped = {}
+        for k, v in self.all_exvars.items():
+            d[k] = popped[k] = v.get()
+        self._popped = popped
+
+        return d
+
+    def __enter__(self):
+        return self._select_vars()
+
+    def __exit__(self, *err):
+        for k, v in self._popped.items():
+            self.all_exvars_[k].put(v)
+
+
+sub_name = re.compile('%\((.+?)\)%').sub
+
+def replace_names(s, v):
+    return sub_name(lambda m: v[m.group(1)], s)
+
+def run_actions(client, conf, vars_, actions):
     global SUCC, FAIL
+    org_header = conf.get('headers', {})
 
-    actions = conf['actions']
+    # 全リクエストに付与するクエリー文字列
+    query_param = [(k, replace_names(v, vars_)) for k, v in
+                        conf.get('query_param', {}).items()]
 
-    for _ in xrange(NLOOP):
-        U = select_vars(V)
+    for action in actions:
+        if STOP: return
+        method = action.get('method', 'GET')
+        org_path = path = action['path']
+        header = org_header.copy()
 
-        for action in actions:
-            if STOP:
-                return
+        path = replace_names(path, vars_)
 
-            method = action.get('method', 'GET')
-            org_path = path = action['path']
+        if method == 'POST' and 'post_param' in action:
+            post_param = action['post_param']
+            for k, v in post_param.items():
+                post_param[k] = replace_names(v, vars_)
+            body = urllib.urlencode(post_param)
+            header['Content-Type'] = 'application/x-www-form-urlencoded'
+        else:
+            body = b''
 
-            for k,v in U.iteritems():
-                path = path.replace("%("+k+")%", v)
-
-            header = {}
-            if method == 'POST' and 'post_param' in action:
-                post_param = action['post_param']
-                for k, v in post_param.items():
-                    v = re.sub('%\((.+?)\)%', lambda m: U.get(m.group(1)), v)
-                    post_param[k] = v
-                body = urllib.urlencode(post_param)
-                header['Content-Type'] = 'application/x-www-form-urlencoded'
-            else:
-                body = b''
-
-            while 1:
+        while 1: # リダイレクトループ
+            if query_param:
                 if '?' in path:
                     p1, p2 = path.split('?')
-                    p2 = urlparse.parse_qsl(p2)
+                    p2 = urlparse.parse_qsl(p2) + query_param
                 else:
                     p1 = path
-                    p2 = []
+                    p2 = query_param
+                p2 = urllib.urlencode(p2)
+                path = p1 + '?' + p2
 
-                if p2:
-                    p2 = urllib.urlencode(p2)
-                    path = p1 + '?' + p2
-                else:
-                    path = p1
+            logger.debug("%s %s %s", method, path, body[:100])
+            t = time.time()
+            response = client.request(method, path, body, header)
+            response_body = response.read()
+            t = time.time() - t
+            PATH_TIME[org_path] += t
+            PATH_CNT[org_path] += 1
 
-                logger.debug("%s %s %s", method, path, body[:100])
-                t = time.time()
-                response = client.request(method, path, body, header)
-                response_body = response.read()
-                t = time.time() - t
-                PATH_TIME[org_path] += t
-                PATH_CNT[org_path] += 1
-
-                # handle redirects.
-                if response.status_code // 10 == 30:
-                    logger.debug("(%.2f[ms]) %s location=%s",
-                            t*1000,
-                            response.status_code, response['location'],
-                            )
-                    method = 'GET'
-                    body = b''
-                    header = {}
-                    org_path = path = response['location']
-                    continue
-                else:
-                    break
-
-            if response.status_code // 10 == 20:
-                SUCC += 1
-                ok()
-                logger.debug("(%.2f[ms]) %s %s",
+            # handle redirects.
+            if response.status_code // 10 == 30:
+                logger.debug("(%.2f[ms]) %s location=%s",
                         t*1000,
-                        response.status_code, response_body[:100])
+                        response.status_code, response['location'],
+                        )
+                method = 'GET'
+                body = b''
+                header = org_header.copy()
+                org_path = path = response['location']
+                continue
             else:
-                FAIL += 1
-                ng()
-                logger.warn("(%.2f[ms]) %s %s",
-                        t*1000,
-                        response.status_code, response_body)
+                break
+
+        if response.status_code // 10 == 20:
+            SUCC += 1
+            ok()
+            logger.debug("(%.2f[ms]) %s %s",
+                    t*1000,
+                    response.status_code, response_body[:100])
+        else:
+            FAIL += 1
+            ng()
+            logger.warn("(%.2f[ms]) %s %s",
+                    t*1000,
+                    response.status_code, response_body)
+
+
+def hakai(client, conf, VARS):
+    actions = conf['actions']
+    envmgr = VarEnv(VARS)
+
+    for _ in xrange(NLOOP):
+        with envmgr as vars_:
+            run_actions(client, conf, vars_, actions)
 
 def main():
     global NLOOP, SUCC, FAIL, PATH_TIME, PATH_CNT, STOP
@@ -153,7 +218,7 @@ def main():
 
     conf = load_conf(sys.argv[1])
 
-    loglevel = conf.get("log_level", 3)*10
+    loglevel = conf.get("log_level", 3) * 10
     logger.setLevel(loglevel)
 
     vars_ = load_vars(conf)

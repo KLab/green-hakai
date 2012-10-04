@@ -12,6 +12,7 @@ from geventhttpclient import HTTPClient, URL
 
 from collections import defaultdict
 import logging
+from optparse import OptionParser
 import os
 import re
 import sys
@@ -100,10 +101,10 @@ class VarEnv(object):
     コンテキストマネージャー.
     コンテキスト終了時に exvars を返却する.
     """
-    def __init__(self, VARS):
-        self.consts = VARS[0]
-        self.all_vars = VARS[1]
-        self.all_exvars = VARS[2]
+    def __init__(self, consts, vars_, ex):
+        self.consts = consts
+        self.all_vars = vars_
+        self.all_exvars = ex
 
     def _select_vars(self):
         d = self.consts.copy()
@@ -114,7 +115,6 @@ class VarEnv(object):
         for k, v in self.all_exvars.items():
             d[k] = popped[k] = v.get()
         self._popped = popped
-
         return d
 
     def __enter__(self):
@@ -133,13 +133,15 @@ def replace_names(s, v):
 def run_actions(client, conf, vars_, actions):
     global SUCC, FAIL
     org_header = conf.get('headers', {})
+    debug = logger.debug
+    warn = logger.warn
 
     # 全リクエストに付与するクエリー文字列
     query_param = [(k, replace_names(v, vars_)) for k, v in
                         conf.get('query_param', {}).items()]
 
     for action in actions:
-        if STOP: return
+        if STOP: break
         method = action.get('method', 'GET')
         org_path = path = action['path']
         header = org_header.copy()
@@ -166,7 +168,7 @@ def run_actions(client, conf, vars_, actions):
                 p2 = urllib.urlencode(p2)
                 path = p1 + '?' + p2
 
-            logger.debug("%s %s %s", method, path, body[:100])
+            debug("%s %s %s", method, path, body[:20])
             t = time.time()
             response = client.request(method, path, body, header)
             response_body = response.read()
@@ -176,14 +178,16 @@ def run_actions(client, conf, vars_, actions):
 
             # handle redirects.
             if response.status_code // 10 == 30:
-                logger.debug("(%.2f[ms]) %s location=%s",
-                        t*1000,
-                        response.status_code, response['location'],
-                        )
+                debug("(%.2f[ms]) %s location=%s",
+                      t*1000, response.status_code, response['location'])
                 method = 'GET'
                 body = b''
                 header = org_header.copy()
-                org_path = path = response['location']
+                frag = urlparse.urlparse(response['location'])
+                if frag.query:
+                    org_path = path = '%s?%s' % (frag.path, frag.query)
+                else:
+                    org_path = path = frag.path
                 continue
             else:
                 break
@@ -191,32 +195,40 @@ def run_actions(client, conf, vars_, actions):
         if response.status_code // 10 == 20:
             SUCC += 1
             ok()
-            logger.debug("(%.2f[ms]) %s %s",
-                    t*1000,
-                    response.status_code, response_body[:100])
+            debug("(%.2f[ms]) %s %s",
+                  t*1000, response.status_code, response_body[:100])
         else:
             FAIL += 1
             ng()
-            logger.warn("(%.2f[ms]) %s %s",
-                    t*1000,
-                    response.status_code, response_body)
+            warn("(%.2f[ms]) %s %s",
+                 t*1000, response.status_code, response_body)
 
 
 def hakai(client, conf, VARS):
     actions = conf['actions']
-    envmgr = VarEnv(VARS)
+    VARS = VarEnv(*VARS)
 
     for _ in xrange(NLOOP):
         if STOP:
             break
-        with envmgr as vars_:
+        with VARS as vars_:
             run_actions(client, conf, vars_, actions)
 
 def make_exvars(ex):
     d = {}
     for k, v in ex.items():
-        d[k] = gevent.queue.Queue(len(v), v)
+        d[k] = gevent.queue.Queue(None, v)
     return d
+
+def make_parser():
+    parser = OptionParser(usage="%prog [options] config.yml")
+    parser.add_option('-c', '--max-request', type='int')
+    parser.add_option('-n', '--loop', type='int')
+    parser.add_option('-d', '--total-duration', type='float')
+    parser.add_option('--max-scenario', type='int')
+    parser.add_option('-v', '--verbose', action="count", default=0)
+    parser.add_option('-q', '--quiet', action="count", default=0)
+    return parser
 
 def main():
     global NLOOP, SUCC, FAIL, PATH_TIME, PATH_CNT, STOP
@@ -229,15 +241,24 @@ def main():
     PATH_TIME = defaultdict(int)
     PATH_CNT = defaultdict(int)
 
-    conf = load_conf(sys.argv[1])
+    parser = make_parser()
+    opts, args = parser.parse_args()
+    if not args:
+        parser.print_help()
+        return
 
-    loglevel = conf.get("log_level", 3) * 10
-    logger.setLevel(loglevel)
+    conf = load_conf(args[0])
 
-    C1 = int(conf.get('max_request', 1))
-    C2 = int(conf.get('max_scenario', C1))
-    NLOOP = int(conf.get('loop', 1))
-    TOTAL_DURATION = float(conf.get('total_duration', 0.0)) or None
+    loglevel = conf.get("log_level", 3)
+    loglevel += opts.quiet
+    loglevel -= opts.verbose
+    loglevel = max(loglevel, 1)
+    logger.setLevel(loglevel * 10)
+
+    C1 = opts.max_request or conf.get('max_request', 1)
+    C2 = opts.max_scenario or conf.get('max_scenario', C1)
+    NLOOP = opts.loop or conf.get('loop', 1)
+    TOTAL_DURATION = opts.total_duration or conf.get('total_duration', None)
     USER_AGENT = conf.get('user_agent', 'ghakai')
 
     timeout = float(conf.get('timeout', 10))
@@ -259,7 +280,7 @@ def main():
     for _ in xrange(C2):
         group.spawn(hakai, client, conf, vars_)
     group.join(TOTAL_DURATION)
-    print("timeout...", file=sys.stderr)
+    print("timeout", file=sys.stderr)
     STOP = True
     group.kill()
     delta = time.time() - now

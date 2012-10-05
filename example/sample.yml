@@ -47,7 +47,7 @@ consts:
     c2: c2val
 
 #全リクエストに付加するクエリーパラメータ.
-query_param:
+query_params:
     user: "%(ex)%"
     c1: "%(c1)%"
 
@@ -58,6 +58,6 @@ actions:
     - path: /redirect/to/foo
     - path: /bar
       method: POST
-      post_param:
+      post_params:
         v: "%(var)%"
         c2: "%(c2)%"

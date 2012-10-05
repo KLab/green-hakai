@@ -138,8 +138,8 @@ def run_actions(client, conf, vars_, actions):
     warn = logger.warn
 
     # 全リクエストに付与するクエリー文字列
-    query_param = [(k, replace_names(v, vars_)) for k, v in
-                        conf.get('query_param', {}).items()]
+    query_params = [(k, replace_names(v, vars_)) for k, v in
+                        conf.get('query_params', {}).items()]
 
     for action in actions:
         if STOP: break
@@ -159,13 +159,13 @@ def run_actions(client, conf, vars_, actions):
             body = b''
 
         while 1: # リダイレクトループ
-            if query_param:
+            if query_params:
                 if '?' in path:
                     p1, p2 = path.split('?')
-                    p2 = urlparse.parse_qsl(p2) + query_param
+                    p2 = urlparse.parse_qsl(p2) + query_params
                 else:
                     p1 = path
-                    p2 = query_param
+                    p2 = query_params
                 p2 = urllib.urlencode(p2)
                 path = p1 + '?' + p2
 

@@ -1,30 +1,61 @@
-total_duration: 10
-loop: 10000000
-max_request: 2
-max_scenario: 100
+#シナリオを何回ループで実行するか
+loop: 1000
+
+#プロセス数 (default: 1)
+fork: 1
+
+#プロセスごとのシナリオの並列数. (default: 1)
+#シナリオが実行される回数は fork * loop * max_scenario になる.
+max_scenario: 10
+
+#リクエストの最大並列数. (default: max_scenario)
+max_request: 5
+
+#loopが終わらなくてもこの時間が経つと終了 [sec]
+# (default: none)
+total_duration: 4.5
+
+#終了時にパスごとのレスポンスタイムを表示する. (default: false)
 show_report: true
+
+#ログの詳細度. 1 だとデバッグ情報まで出力. (default: 3)
 log_level: 3
+
+#tcp接続やリクエストのタイムアウト (default: 1)
 timeout: 3
+
+#攻撃先のドメイン. これ以外のドメインは攻撃しない.
 domain: "http://localhost:8889"
+
+#ユーザーエージェント。省略可
 user_agent: "Green Hakai"
 
+#シナリオごとにランダムに選ぶ変数
 vars:
     - name: var
       file: var.txt
+
+#シナリオごとにラウンドロビンで選ぶ変数
+#並列するシナリオ間で同じ値を利用しない
 exvars:
     - name: ex
       file: ex.txt
+
+#定数.
 consts:
     c1: c1val
     c2: c2val
 
+#全リクエストに付加するクエリーパラメータ.
 query_param:
     user: "%(ex)%"
     c1: "%(c1)%"
 
+#シナリオ
 actions: 
     - path: /
     - path: /foo?xxx=yyy
+    - path: /redirect/to/foo
     - path: /bar
       method: POST
       post_param:

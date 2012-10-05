@@ -29,7 +29,7 @@ logger = logging.getLogger()
 
 class Indicator(object):
 
-    def __init__(self, skip=10):
+    def __init__(self, skip=100):
         self.skip = skip
         self.c = 0
 
@@ -239,16 +239,22 @@ def fork_call(func, args, callback):
         # parent process.
         os.close(write_end)
         f = os.fdopen(read_end, 'rb')
-        callback(cPickle.load(f))
+        result = cPickle.load(f)
+        if isinstance(result, BaseException):
+            print(result)
+            os._exit(1)
+        callback(result)
         os.waitpid(pid, 0)
     else:
         # child process
         os.close(read_end)
-        result = func(*args)
+        try:
+            result = func(*args)
+        except BaseException as e:
+            result = e
         f = os.fdopen(write_end, 'wb')
         cPickle.dump(result, f, cPickle.HIGHEST_PROTOCOL)
         f.close()
-        print("child process stopped.")
         os._exit(0)
 
 def main():

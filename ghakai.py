@@ -324,12 +324,10 @@ def main():
             t = Thread(target=fork_call, args=(run_hakai, (var,), results.append))
             threads.append(t)
 
-        print("start procs.")
         now = time.time()
         for t in threads: t.start()
         for t in threads: t.join()
         delta = time.time() - now
-        print("end procs.")
 
         for succ, fail, path_time, path_cnt in results:
             SUCC += succ

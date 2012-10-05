@@ -7,13 +7,16 @@ Ruby の internethakai より機能は少ないですが、 Ruby と gem のセ�
 """
 from __future__ import print_function, division
 
+__version__ = '0.0.1'
+
 import gevent.pool
-from geventhttpclient import HTTPClient, URL
+from geventhttpclient import HTTPClient
 
 from collections import defaultdict
 import logging
 from optparse import OptionParser
 import os
+import cPickle
 import re
 import sys
 import time
@@ -44,8 +47,6 @@ ok = _indicator.ok
 ng = _indicator.ng
 
 basedir = '.'
-
-
 def load_conf(filename):
     global basedir
     basedir = os.path.dirname(filename)
@@ -148,11 +149,11 @@ def run_actions(client, conf, vars_, actions):
 
         path = replace_names(path, vars_)
 
-        if method == 'POST' and 'post_param' in action:
-            post_param = action['post_param']
-            for k, v in post_param.items():
-                post_param[k] = replace_names(v, vars_)
-            body = urllib.urlencode(post_param)
+        if method == 'POST' and 'post_params' in action:
+            post_params = action['post_params']
+            for k, v in post_params.items():
+                post_params[k] = replace_names(v, vars_)
+            body = urllib.urlencode(post_params)
             header['Content-Type'] = 'application/x-www-form-urlencoded'
         else:
             body = b''
@@ -222,6 +223,7 @@ def make_exvars(ex):
 
 def make_parser():
     parser = OptionParser(usage="%prog [options] config.yml")
+    parser.add_option('--fork', type='int')
     parser.add_option('-c', '--max-request', type='int')
     parser.add_option('-n', '--loop', type='int')
     parser.add_option('-d', '--total-duration', type='float')
@@ -229,6 +231,25 @@ def make_parser():
     parser.add_option('-v', '--verbose', action="count", default=0)
     parser.add_option('-q', '--quiet', action="count", default=0)
     return parser
+
+def fork_call(func, args, callback):
+    read_end, write_end = os.pipe()
+    pid = os.fork()
+    if pid:
+        # parent process.
+        os.close(write_end)
+        f = os.fdopen(read_end, 'rb')
+        callback(cPickle.load(f))
+        os.waitpid(pid, 0)
+    else:
+        # child process
+        os.close(read_end)
+        result = func(*args)
+        f = os.fdopen(write_end, 'wb')
+        cPickle.dump(result, f, cPickle.HIGHEST_PROTOCOL)
+        f.close()
+        print("child process stopped.")
+        os._exit(0)
 
 def main():
     global NLOOP, SUCC, FAIL, PATH_TIME, PATH_CNT, STOP
@@ -250,41 +271,74 @@ def main():
     conf = load_conf(args[0])
 
     loglevel = conf.get("log_level", 3)
-    loglevel += opts.quiet
-    loglevel -= opts.verbose
+    loglevel += opts.quiet - opts.verbose
     loglevel = max(loglevel, 1)
     logger.setLevel(loglevel * 10)
 
     C1 = opts.max_request or conf.get('max_request', 1)
     C2 = opts.max_scenario or conf.get('max_scenario', C1)
+    nfork = opts.fork or conf.get('fork', 1)
     NLOOP = opts.loop or conf.get('loop', 1)
     TOTAL_DURATION = opts.total_duration or conf.get('total_duration', None)
-    USER_AGENT = conf.get('user_agent', 'ghakai')
+    USER_AGENT = conf.get('user_agent', 'green hakai/0.1')
 
     timeout = float(conf.get('timeout', 10))
     host = conf['domain']
     headers = {'User-Agent': USER_AGENT}
 
-    c,v,e = load_vars(conf)
-    vars_ = (c, v, make_exvars(e))
+    def run_hakai(var):
+        client = HTTPClient.from_url(host,
+                                     concurrency=C1,
+                                     connection_timeout=timeout,
+                                     network_timeout=timeout,
+                                     headers=headers,
+                                     )
 
-    client = HTTPClient.from_url(host,
-                                 concurrency=C1,
-                                 connection_timeout=timeout,
-                                 network_timeout=timeout,
-                                 headers=headers,
-                                 )
+        group = gevent.pool.Group()
+        for _ in xrange(C2):
+            group.spawn(hakai, client, conf, var)
+        group.join(TOTAL_DURATION)
+        STOP = True
+        group.kill()
+        return SUCC, FAIL, PATH_TIME, PATH_CNT
 
-    group = gevent.pool.Group()
-    now = time.time()
-    for _ in xrange(C2):
-        group.spawn(hakai, client, conf, vars_)
-    group.join(TOTAL_DURATION)
-    print("timeout", file=sys.stderr)
-    STOP = True
-    group.kill()
-    delta = time.time() - now
+    consts, vars_, exvars = load_vars(conf)
 
+    if nfork > 1:
+        from threading import Thread
+
+        results = []
+        threads = []
+    
+        for ifork in xrange(nfork):
+            ie = {}
+            for k, v in exvars.items():
+                ie[k] = v[ifork::nfork]
+            var = (consts, vars_, make_exvars(ie))
+            t = Thread(target=fork_call, args=(run_hakai, (var,), results.append))
+            threads.append(t)
+
+        print("start procs.")
+        now = time.time()
+        for t in threads: t.start()
+        for t in threads: t.join()
+        delta = time.time() - now
+        print("end procs.")
+
+        for succ, fail, path_time, path_cnt in results:
+            SUCC += succ
+            FAIL += fail
+            for k, v in path_time.items():
+                PATH_TIME[k] += v
+            for k, v in path_cnt.items():
+                PATH_CNT[k] += v
+    else:
+        var = (consts, vars_, make_exvars(exvars))
+        now = time.time()
+        SUCC, FAIL, PATH_TIME, PATH_CNT = run_hakai(var)
+        delta = time.time() - now
+
+    print()
     NREQ = SUCC+FAIL
     req_per_sec = NREQ / delta
     print("request count:%d, concurrenry:%d, %f req/s" % (NREQ, C1, req_per_sec))

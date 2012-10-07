@@ -27,6 +27,7 @@ import random
 logger = logging.getLogger()
 
 
+# 実行中に ... って表示する.
 class Indicator(object):
 
     def __init__(self, skip=100):
@@ -45,18 +46,21 @@ class Indicator(object):
 _indicator = Indicator()
 ok = _indicator.ok
 ng = _indicator.ng
+del _indicator
 
-basedir = '.'
+
 def load_conf(filename):
-    global basedir
     basedir = os.path.dirname(filename)
     import yaml
-    return yaml.load(open(filename))
+    conf = yaml.load(open(filename))
+    conf.setdefault('BASEDIR', basedir)
+    return conf
 
 def _load_vars(conf, name):
     if name not in conf:
         return {}
     V = {}
+    basedir = conf['BASEDIR']
     for var in conf[name]:
         var_name = var['name']
         var_file = var['file']
@@ -205,11 +209,11 @@ def run_actions(client, conf, vars_, actions):
                  t*1000, response.status_code, response_body)
 
 
-def hakai(client, conf, VARS):
+def hakai(client, nloop, conf, VARS):
     actions = conf['actions']
     VARS = VarEnv(*VARS)
 
-    for _ in xrange(NLOOP):
+    for _ in xrange(nloop):
         if STOP:
             break
         with VARS as vars_:
@@ -232,7 +236,10 @@ def make_parser():
     parser.add_option('-q', '--quiet', action="count", default=0)
     return parser
 
+
 def fork_call(func, args, callback):
+    u"""子プロセスで func(args) を実行して、その結果を引数として callback
+    を呼び出す."""
     read_end, write_end = os.pipe()
     pid = os.fork()
     if pid:
@@ -257,11 +264,9 @@ def fork_call(func, args, callback):
         f.close()
         os._exit(0)
 
+
 def main():
-    global NLOOP, SUCC, FAIL, PATH_TIME, PATH_CNT, STOP
-    C1 = 1
-    C2 = 1
-    NLOOP = 1
+    global SUCC, FAIL, PATH_TIME, PATH_CNT, STOP
     SUCC = 0
     FAIL = 0
     STOP = False
@@ -281,29 +286,28 @@ def main():
     loglevel = max(loglevel, 1)
     logger.setLevel(loglevel * 10)
 
-    C1 = opts.max_request or conf.get('max_request', 1)
-    C2 = opts.max_scenario or conf.get('max_scenario', C1)
+    max_request = opts.max_request or conf.get('max_request', 1)
+    max_scenario = opts.max_scenario or conf.get('max_scenario', max_request)
     nfork = opts.fork or conf.get('fork', 1)
-    NLOOP = opts.loop or conf.get('loop', 1)
-    TOTAL_DURATION = opts.total_duration or conf.get('total_duration', None)
-    USER_AGENT = conf.get('user_agent', 'green hakai/0.1')
+    nloop = opts.loop or conf.get('loop', 1)
+    duration = opts.total_duration or conf.get('total_duration', None)
+    user_agent = conf.get('user_agent', 'green hakai/0.1')
 
     timeout = float(conf.get('timeout', 10))
     host = conf['domain']
-    headers = {'User-Agent': USER_AGENT}
 
     def run_hakai(var):
         client = HTTPClient.from_url(host,
-                                     concurrency=C1,
+                                     concurrency=max_request,
                                      connection_timeout=timeout,
                                      network_timeout=timeout,
-                                     headers=headers,
+                                     headers={'User-Agent': user_agent},
                                      )
 
         group = gevent.pool.Group()
-        for _ in xrange(C2):
-            group.spawn(hakai, client, conf, var)
-        group.join(TOTAL_DURATION)
+        for _ in xrange(max_scenario):
+            group.spawn(hakai, client, nloop, conf, var)
+        group.join(duration)
         STOP = True
         group.kill()
         return SUCC, FAIL, PATH_TIME, PATH_CNT
@@ -345,7 +349,7 @@ def main():
     print()
     NREQ = SUCC+FAIL
     req_per_sec = NREQ / delta
-    print("request count:%d, concurrenry:%d, %f req/s" % (NREQ, C1, req_per_sec))
+    print("request count:%d, concurrenry:%d, %f req/s" % (NREQ, max_request, req_per_sec))
     print("SUCCESS", SUCC)
     print("FAILED", FAIL)
 

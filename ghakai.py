@@ -223,6 +223,7 @@ def run_actions(client, conf, vars_, actions):
                 warn("\ntimeout: time=%.2f[sec] url=%s", t, path)
             else:
                 logger.error("time=%.2f[sec] url=%s error=%s", t, path, err)
+            break  # stop scenario
 
 
 def hakai(client, nloop, conf, VARS):

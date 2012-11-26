@@ -179,10 +179,16 @@ def run_actions(client, conf, vars_, actions):
                 response = client.request(method, path, body, header)
                 response_body = response.read()
                 timeout = False
-            except gevent.timeout as t:
+            except (gevent.timeout, gevent.socket.timeout):
                 timeout = True
+                response = None
                 break
-            t = time.time() - t
+            except IOError as e:
+                response = None
+                err = e
+                break
+            finally:
+                t = time.time() - t
             PATH_TIME[org_path] += t
             PATH_CNT[org_path] += 1
 
@@ -210,11 +216,13 @@ def run_actions(client, conf, vars_, actions):
         else:
             FAIL += 1
             ng()
-            if timeout:
-                warn("timeout: url=%s", path)
-            else:
+            if response:
                 warn("(%.2f[ms]) %s %s",
                      t*1000, response.status_code, response_body)
+            elif timeout:
+                warn("\ntimeout: time=%.2f[sec] url=%s", t, path)
+            else:
+                logger.error("time=%.2f[sec] url=%s error=%s", t, path, err)
 
 
 def hakai(client, nloop, conf, VARS):

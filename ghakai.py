@@ -175,8 +175,13 @@ def run_actions(client, conf, vars_, actions):
 
             debug("%s %s %s", method, path, body[:20])
             t = time.time()
-            response = client.request(method, path, body, header)
-            response_body = response.read()
+            try:
+                response = client.request(method, path, body, header)
+                response_body = response.read()
+                timeout = False
+            except gevent.timeout as t:
+                timeout = True
+                break
             t = time.time() - t
             PATH_TIME[org_path] += t
             PATH_CNT[org_path] += 1
@@ -197,7 +202,7 @@ def run_actions(client, conf, vars_, actions):
             else:
                 break
 
-        if response.status_code // 10 == 20:
+        if not timeout and response.status_code // 10 == 20:
             SUCC += 1
             ok()
             debug("(%.2f[ms]) %s %s",
@@ -205,8 +210,11 @@ def run_actions(client, conf, vars_, actions):
         else:
             FAIL += 1
             ng()
-            warn("(%.2f[ms]) %s %s",
-                 t*1000, response.status_code, response_body)
+            if timeout:
+                warn("timeout: url=%s", path)
+            else:
+                warn("(%.2f[ms]) %s %s",
+                     t*1000, response.status_code, response_body)
 
 
 def hakai(client, nloop, conf, VARS):
@@ -319,7 +327,7 @@ def main():
 
         results = []
         threads = []
-    
+
         for ifork in xrange(nfork):
             ie = {}
             for k, v in exvars.items():

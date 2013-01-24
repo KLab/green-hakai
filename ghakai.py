@@ -303,8 +303,8 @@ def main():
     loglevel = max(loglevel, 1)
     logger.setLevel(loglevel * 10)
 
-    max_request = opts.max_request or conf.get('max_request', 1)
-    max_scenario = opts.max_scenario or conf.get('max_scenario', max_request)
+    max_scenario = opts.max_scenario or conf.get('max_scenario', 1)
+    max_request = opts.max_request or conf.get('max_request', max_scenario)
     nfork = opts.fork or conf.get('fork', 1)
     nloop = opts.loop or conf.get('loop', 1)
     duration = opts.total_duration or conf.get('total_duration', None)

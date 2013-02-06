@@ -176,9 +176,9 @@ def run_actions(client, conf, vars_, actions):
             debug("%s %s %s", method, path, body[:20])
             t = time.time()
             try:
+                timeout = False
                 response = client.request(method, path, body, header)
                 response_body = response.read()
-                timeout = False
             except (gevent.timeout, gevent.socket.timeout):
                 timeout = True
                 response = None

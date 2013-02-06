@@ -208,7 +208,7 @@ def run_actions(client, conf, vars_, actions):
             else:
                 break
 
-        if not timeout and response.status_code // 10 == 20:
+        if not timeout and response and response.status_code // 10 == 20:
             SUCC += 1
             ok()
             debug("(%.2f[ms]) %s %s",

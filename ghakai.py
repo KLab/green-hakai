@@ -91,7 +91,7 @@ def load_vars(conf):
             -
                 name: bar
                 file: bar.txt
-    """ 
+    """
     if 'consts' in conf:
         c = conf['consts']
     else:
@@ -135,6 +135,9 @@ sub_name = re.compile('%\((.+?)\)%').sub
 def replace_names(s, v):
     return sub_name(lambda m: v[m.group(1)], s)
 
+
+SUCC = FAIL = 0
+
 def run_actions(client, conf, vars_, actions):
     global SUCC, FAIL
     org_header = conf.get('headers', {})
@@ -143,7 +146,7 @@ def run_actions(client, conf, vars_, actions):
 
     # 全リクエストに付与するクエリー文字列
     query_params = [(k, replace_names(v, vars_)) for k, v in
-                        conf.get('query_params', {}).items()]
+                    conf.get('query_params', {}).items()]
 
     for action in actions:
         if STOP: break
@@ -162,7 +165,7 @@ def run_actions(client, conf, vars_, actions):
         else:
             body = b''
 
-        while 1: # リダイレクトループ
+        while 1:  # リダイレクトループ
             if query_params:
                 if '?' in path:
                     p1, p2 = path.split('?')
@@ -248,7 +251,7 @@ def make_parser():
     parser.add_option('-c', '--max-request', type='int')
     parser.add_option('-n', '--loop', type='int')
     parser.add_option('-d', '--total-duration', type='float')
-    parser.add_option('--max-scenario', type='int')
+    parser.add_option('-s', '--max-scenario', type='int')
     parser.add_option('-v', '--verbose', action="count", default=0)
     parser.add_option('-q', '--quiet', action="count", default=0)
     return parser
@@ -373,7 +376,7 @@ def main():
     total_cnt = total_time = 0
 
     avg_time_by_path = []
-    for path,cnt in PATH_CNT.iteritems():
+    for path, cnt in PATH_CNT.iteritems():
         t = PATH_TIME[path]
         avg_time_by_path.append((t/cnt, path))
         total_cnt += cnt

@@ -4,6 +4,8 @@ u"""インターネット破壊の gevent 版.
 
 Ruby の internethakai より機能は少ないですが、 Ruby と gem のセットアップ
 がすぐにできないときはこっちのほうが楽.
+
+Python 2.6 以降に対応.
 """
 from __future__ import print_function, division
 
@@ -23,8 +25,6 @@ import time
 import urllib
 import urlparse
 import random
-
-logger = logging.getLogger()
 
 
 # 実行中に ... って表示する.
@@ -141,8 +141,8 @@ SUCC = FAIL = 0
 def run_actions(client, conf, vars_, actions):
     global SUCC, FAIL
     org_header = conf.get('headers', {})
-    debug = logger.debug
-    warn = logger.warn
+    debug = logging.debug
+    warn = logging.warn
 
     # 全リクエストに付与するクエリー文字列
     query_params = [(k, replace_names(v, vars_)) for k, v in
@@ -225,7 +225,7 @@ def run_actions(client, conf, vars_, actions):
             elif timeout:
                 warn("\ntimeout: time=%.2f[sec] url=%s", t, path)
             else:
-                logger.error("time=%.2f[sec] url=%s error=%s", t, path, err)
+                logging.error("time=%.2f[sec] url=%s error=%s", t, path, err)
             break  # stop scenario
 
 

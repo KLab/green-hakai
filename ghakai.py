@@ -12,7 +12,8 @@ from __future__ import print_function, division
 __version__ = '0.0.1'
 
 import gevent.pool
-from geventhttpclient import HTTPClient
+import geventhttpclient.client
+from geventhttpclient.connectionpool import ConnectionPool
 
 from collections import defaultdict
 import logging
@@ -25,6 +26,29 @@ import time
 import urllib
 import urlparse
 import random
+import socket
+
+
+class AddressConnectionPool(ConnectionPool):
+    addresses = []
+
+    @classmethod
+    def register_addresslist(cls, addresslist):
+        for addr in addresslist:
+            port = 80
+            if ':' in addr:
+                addr, port = addr.split(':')
+                port = int(port)
+            cls.addresses += socket.getaddrinfo(addr, port)
+
+    def _resolve(self):
+        """returns (family, socktype, proto, cname, addr)"""
+        if not self.addresses:
+            self.addresses = ConnectionPool._resolve(self)
+        random.shuffle(self.addresses)
+        return self.addresses
+
+geventhttpclient.client.ConnectionPool = AddressConnectionPool
 
 
 # 実行中に ... って表示する.
@@ -316,13 +340,18 @@ def main():
     timeout = float(conf.get('timeout', 10))
     host = conf['domain']
 
+    addresslist = conf.get('addresslist')
+    if addresslist:
+        AddressConnectionPool.register_addresslist(addresslist)
+
     def run_hakai(var):
-        client = HTTPClient.from_url(host,
-                                     concurrency=max_request,
-                                     connection_timeout=timeout,
-                                     network_timeout=timeout,
-                                     headers={'User-Agent': user_agent},
-                                     )
+        client = geventhttpclient.HTTPClient.from_url(
+                host,
+                concurrency=max_request,
+                connection_timeout=timeout,
+                network_timeout=timeout,
+                headers={'User-Agent': user_agent},
+                )
 
         group = gevent.pool.Group()
         for _ in xrange(max_scenario):

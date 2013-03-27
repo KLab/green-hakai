@@ -25,7 +25,13 @@ log_level: 3
 timeout: 3
 
 #攻撃先のドメイン. これ以外のドメインは攻撃しない.
+# Host ヘッダにこのドメインが書かれる.
 domain: "http://localhost:8889"
+
+#接続先アドレスリスト. 省略した場合は domain を利用する.
+addresslist:
+    - 127.0.0.1:8889
+    - localhost:8889
 
 #ユーザーエージェント。省略可
 user_agent: "Green Hakai"

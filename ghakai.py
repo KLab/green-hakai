@@ -304,7 +304,7 @@ def main():
     loglevel = conf.get("log_level", 3)
     loglevel += opts.quiet - opts.verbose
     loglevel = max(loglevel, 1)
-    logger.setLevel(loglevel * 10)
+    logging.getLogger().setLevel(loglevel * 10)
 
     max_scenario = opts.max_scenario or conf.get('max_scenario', 1)
     max_request = opts.max_request or conf.get('max_request', max_scenario)

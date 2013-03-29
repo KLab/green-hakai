@@ -290,7 +290,6 @@ def hakai(client, conf, VARS):
         if STOP:
             break
         LOOP -= 1
-        print(LOOP)
         if LOOP < 0:
             break
         with VARS as vars_:

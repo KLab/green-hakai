@@ -29,6 +29,15 @@ import random
 import socket
 
 
+debug = logging.debug
+info = logging.info
+warn = logging.warn
+error = logging.error
+
+SUCC = FAIL = 0
+STOP = False
+
+
 class AddressConnectionPool(ConnectionPool):
     addresses = []
 
@@ -51,6 +60,9 @@ class AddressConnectionPool(ConnectionPool):
         return self.addresses
 
 geventhttpclient.client.ConnectionPool = AddressConnectionPool
+
+MIMETYPE_FORM = 'application/x-www-form-urlencoded'
+MIMETYPE_JSON = 'application/json'
 
 
 # 実行中に ... って表示する.
@@ -156,37 +168,40 @@ class VarEnv(object):
             self.all_exvars[k].put(v)
 
 
-sub_name = re.compile('%\((.+?)\)%').sub
+class Action(object):
+    def __init__(self, conf, action):
+        self.conf = conf
+        self.action = action
+        self.method = action.get('method', 'GET')
+        self.path = action['path']
+        #: 全リクエストに付与するクエリー文字列
+        self.query_params = conf.get('query_params', {}).items()
+        self.headers = conf.get('headers', {})
+        self.post_params = conf.get('post_params')
 
-def replace_names(s, v):
-    return sub_name(lambda m: v[m.group(1)], s)
+    def _replace_names(self, s, v, _sub_name=re.compile('%\((.+?)\)%').sub):
+        return _sub_name(lambda m: v[m.group(1)], s)
 
+    def execute(self, client, vars_):
+        u"""1アクションの実行
 
-SUCC = FAIL = 0
+        リダイレクトを処理するのでリクエストは複数回実行する
+        """
+        method = self.method
+        #: path - 変数展開前のURL
+        #: この path ごとに集計を行う.
+        path = self.path
+        query_params = self.query_params
+        header = self.headers
 
-def run_actions(client, conf, vars_, actions):
-    global SUCC, FAIL
-    org_header = conf.get('headers', {})
-    debug = logging.debug
-    warn = logging.warn
+        #: realpath - 変数展開した実際にアクセスするURL
+        real_path = self._replace_names(path, vars_)
 
-    # 全リクエストに付与するクエリー文字列
-    query_params = [(k, replace_names(v, vars_)) for k, v in
-                    conf.get('query_params', {}).items()]
-
-    for action in actions:
-        if STOP: break
-        method = action.get('method', 'GET')
-        org_path = path = action['path']
-        header = org_header.copy()
-
-        path = replace_names(path, vars_)
-
-        if method == 'POST' and 'post_params' in action:
-            post_params = action['post_params']
-            for k, v in post_params.items():
-                post_params[k] = replace_names(v, vars_)
+        if method == 'POST' and self.post_params is not None:
+            post_params = [(k, self._replace_names(v, vars_))
+                           for (k, v) in self.post_params.items()]
             body = urllib.urlencode(post_params)
+            header = header.copy()
             header['Content-Type'] = 'application/x-www-form-urlencoded'
         else:
             body = b''
@@ -217,32 +232,36 @@ def run_actions(client, conf, vars_, actions):
                 err = e
                 break
             finally:
+                # t はエラー時も使われるので常に計測する.
                 t = time.time() - t
-            PATH_TIME[org_path] += t
-            PATH_CNT[org_path] += 1
 
-            # handle redirects.
-            if response.status_code // 10 == 30:
-                debug("(%.2f[ms]) %s location=%s",
-                      t*1000, response.status_code, response['location'])
-                method = 'GET'
-                body = b''
-                header = org_header.copy()
-                frag = urlparse.urlparse(response['location'])
-                if frag.query:
-                    org_path = path = '%s?%s' % (frag.path, frag.query)
-                else:
-                    org_path = path = frag.path
-                continue
-            else:
+            PATH_TIME[path] += t
+            PATH_CNT[path] += 1
+
+            if response.status_code // 10 != 30:  # isn't redirect
                 break
 
+            # handle redirects.
+            debug("(%.2f[ms]) %s location=%s", t*1000,
+                  response.status_code, response['location'])
+            method = 'GET'
+            body = b''
+            headers = self.headers
+            frag = urlparse.urlparse(response['location'])
+            if frag.query:
+                path = real_path = '%s?%s' % (frag.path, frag.query)
+            else:
+                path = real_path = frag.path
+
         if not timeout and response and response.status_code // 10 == 20:
+            global SUCC
             SUCC += 1
             ok()
             debug("(%.2f[ms]) %s %s",
                   t*1000, response.status_code, response_body[:100])
+            return True
         else:
+            global FAIL
             FAIL += 1
             ng()
             if response:
@@ -251,12 +270,20 @@ def run_actions(client, conf, vars_, actions):
             elif timeout:
                 warn("\ntimeout: time=%.2f[sec] url=%s", t, path)
             else:
-                logging.error("time=%.2f[sec] url=%s error=%s", t, path, err)
-            break  # stop scenario
+                error("time=%.2f[sec] url=%s error=%s", t, path, err)
+            return False
+
+
+def run_actions(client, conf, vars_, actions):
+    succ = True
+    for action in actions:
+        if STOP or not succ:
+            break
+        succ = action.execute(client, vars_)
 
 
 def hakai(client, nloop, conf, VARS):
-    actions = conf['actions']
+    actions = [Action(conf, a) for a in conf['actions']]
     VARS = VarEnv(*VARS)
 
     for _ in xrange(nloop):
@@ -285,7 +312,9 @@ def make_parser():
 
 def fork_call(func, args, callback):
     u"""子プロセスで func(args) を実行して、その結果を引数として callback
-    を呼び出す."""
+    を呼び出す.
+    multiprocessing が動かない環境用.
+    """
     read_end, write_end = os.pipe()
     pid = os.fork()
     if pid:
@@ -398,9 +427,10 @@ def main():
         delta = time.time() - now
 
     print()
-    NREQ = SUCC+FAIL
+    NREQ = SUCC + FAIL
     req_per_sec = NREQ / delta
-    print("request count:%d, concurrenry:%d, %f req/s" % (NREQ, max_request, req_per_sec))
+    print("request count:%d, concurrenry:%d, %f req/s" %
+          (NREQ, max_request, req_per_sec))
     print("SUCCESS", SUCC)
     print("FAILED", FAIL)
 
@@ -418,7 +448,7 @@ def main():
         ranking = int(conf.get('ranking', 20))
         print("Average response time for each path (order by longest) [ms]:")
         avg_time_by_path.sort(reverse=True)
-        for t,p in avg_time_by_path[:ranking]:
+        for t, p in avg_time_by_path[:ranking]:
             print(t*1000, p)
 
 

@@ -6,10 +6,11 @@ fork: 1
 
 #プロセスごとのシナリオの並列数. (default: 1)
 #シナリオが実行される回数は fork * loop * max_scenario になる.
-max_scenario: 10
+max_scenario: 1
 
-#リクエストの最大並列数. (default: max_scenario)
-max_request: 5
+#リクエストの最大並列数.
+#並列シナリオ数以下に制限したいときに使う. (default: max_scenario)
+#max_request: 5
 
 #loopが終わらなくてもこの時間が経つと終了 [sec]
 # (default: none)

@@ -292,15 +292,17 @@ def hakai(client, nloop, conf, VARS):
         with VARS as vars_:
             run_actions(client, conf, vars_, actions)
 
+
 def make_exvars(ex):
     d = {}
     for k, v in ex.items():
         d[k] = gevent.queue.Queue(None, v)
     return d
 
+
 def make_parser():
     parser = OptionParser(usage="%prog [options] config.yml")
-    parser.add_option('--fork', type='int')
+    parser.add_option('-f', '--fork', type='int')
     parser.add_option('-c', '--max-request', type='int')
     parser.add_option('-n', '--loop', type='int')
     parser.add_option('-d', '--total-duration', type='float')
@@ -310,37 +312,18 @@ def make_parser():
     return parser
 
 
-def fork_call(func, args, callback):
-    u"""子プロセスで func(args) を実行して、その結果を引数として callback
-    を呼び出す.
-    multiprocessing が動かない環境用.
-    """
-    read_end, write_end = os.pipe()
-    pid = os.fork()
-    if pid:
-        # parent process.
-        os.close(write_end)
-        f = os.fdopen(read_end, 'rb')
-        result = cPickle.load(f)
-        if isinstance(result, BaseException):
-            print(result)
-            os._exit(1)
-        callback(result)
-        os.waitpid(pid, 0)
-    else:
-        # child process
-        os.close(read_end)
-        try:
-            result = func(*args)
-        except BaseException as e:
-            result = e
-        f = os.fdopen(write_end, 'wb')
-        cPickle.dump(result, f, cPickle.HIGHEST_PROTOCOL)
-        f.close()
-        os._exit(0)
+def update_conf(conf, opts):
+    u"""設定ファイルの内容をコマンドラインオプションで上書きする"""
+    conf['max_scenario'] = int(opts.max_scenario or
+                               conf.get('max_scenario', 1))
+    conf['max_request'] = int(opts.max_request or
+                              conf.get('max_request', conf['max_scenario']))
+    conf['loop'] = int(opts.loop or conf.get('loop', 1))
+    conf['total_duration'] = opts.total_duration or conf.get('total_duration')
 
 
-def main():
+def run_hakai(conf, all_vars):
+    u"""各プロセスで動くmain関数"""
     global SUCC, FAIL, PATH_TIME, PATH_CNT, STOP
     SUCC = 0
     FAIL = 0
@@ -348,6 +331,33 @@ def main():
     PATH_TIME = defaultdict(int)
     PATH_CNT = defaultdict(int)
 
+    addresslist = conf.get('addresslist')
+    if addresslist:
+        AddressConnectionPool.register_addresslist(addresslist)
+
+    host = conf['domain']
+    user_agent = conf.get('user_agent', 'green hakai/0.1')
+    timeout = float(conf.get('timeout', 10))
+    client = geventhttpclient.HTTPClient.from_url(
+            host,
+            concurrency=conf['max_request'],
+            connection_timeout=timeout,
+            network_timeout=timeout,
+            headers={'User-Agent': user_agent},
+            )
+
+    vars_ = all_vars[0], all_vars[1], make_exvars(all_vars[2])
+
+    group = gevent.pool.Group()
+    for _ in xrange(conf['max_scenario']):
+        group.spawn(hakai, client, conf['loop'], conf, vars_)
+    group.join(conf['total_duration'])
+    STOP = True
+    group.kill()
+    return SUCC, FAIL, PATH_TIME, PATH_CNT
+
+
+def main():
     parser = make_parser()
     opts, args = parser.parse_args()
     if not args:
@@ -355,46 +365,19 @@ def main():
         return
 
     conf = load_conf(args[0])
+    nfork = opts.fork or conf.get('fork', 1)
+    update_conf(conf, opts)
 
     loglevel = conf.get("log_level", 3)
     loglevel += opts.quiet - opts.verbose
     loglevel = max(loglevel, 1)
     logging.getLogger().setLevel(loglevel * 10)
 
-    max_scenario = opts.max_scenario or conf.get('max_scenario', 1)
-    max_request = opts.max_request or conf.get('max_request', max_scenario)
-    nfork = opts.fork or conf.get('fork', 1)
-    nloop = opts.loop or conf.get('loop', 1)
-    duration = opts.total_duration or conf.get('total_duration', None)
-    user_agent = conf.get('user_agent', 'green hakai/0.1')
-
-    timeout = float(conf.get('timeout', 10))
-    host = conf['domain']
-
-    addresslist = conf.get('addresslist')
-    if addresslist:
-        AddressConnectionPool.register_addresslist(addresslist)
-
-    def run_hakai(var):
-        client = geventhttpclient.HTTPClient.from_url(
-                host,
-                concurrency=max_request,
-                connection_timeout=timeout,
-                network_timeout=timeout,
-                headers={'User-Agent': user_agent},
-                )
-
-        group = gevent.pool.Group()
-        for _ in xrange(max_scenario):
-            group.spawn(hakai, client, nloop, conf, var)
-        group.join(duration)
-        STOP = True
-        group.kill()
-        return SUCC, FAIL, PATH_TIME, PATH_CNT
-
-    consts, vars_, exvars = load_vars(conf)
-
-    if nfork > 1:
+    if nfork < 2:
+        now = time.time()
+        SUCC, FAIL, PATH_TIME, PATH_CNT = run_hakai(conf, load_vars(conf))
+        delta = time.time() - now
+    else:
         from threading import Thread
 
         results = []
@@ -420,17 +403,12 @@ def main():
                 PATH_TIME[k] += v
             for k, v in path_cnt.items():
                 PATH_CNT[k] += v
-    else:
-        var = (consts, vars_, make_exvars(exvars))
-        now = time.time()
-        SUCC, FAIL, PATH_TIME, PATH_CNT = run_hakai(var)
-        delta = time.time() - now
 
     print()
     NREQ = SUCC + FAIL
     req_per_sec = NREQ / delta
     print("request count:%d, concurrenry:%d, %f req/s" %
-          (NREQ, max_request, req_per_sec))
+          (NREQ, conf['max_request'] * nfork, req_per_sec))
     print("SUCCESS", SUCC)
     print("FAILED", FAIL)
 

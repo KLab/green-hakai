@@ -19,7 +19,6 @@ from collections import defaultdict
 import logging
 from optparse import OptionParser
 import os
-import cPickle
 import re
 import sys
 import time
@@ -354,7 +353,14 @@ def run_hakai(conf, all_vars):
     group.join(conf['total_duration'])
     STOP = True
     group.kill()
-    return SUCC, FAIL, PATH_TIME, PATH_CNT
+    return SUCC, FAIL, dict(PATH_TIME), dict(PATH_CNT)
+
+
+def remote_hakai(channel):
+    u"""run_hakai() をリモートで動かすエージェント"""
+    conf, vars_ = channel.receive()
+    result = run_hakai(conf, vars_)
+    channel.send(result)
 
 
 def main():
@@ -378,24 +384,29 @@ def main():
         SUCC, FAIL, PATH_TIME, PATH_CNT = run_hakai(conf, load_vars(conf))
         delta = time.time() - now
     else:
-        from threading import Thread
+        import execnet
+        import ghakai
+        group = execnet.Group(['popen']*nfork)
+        multi_chan = group.remote_exec(ghakai)
 
-        results = []
-        threads = []
-
-        for ifork in xrange(nfork):
+        all_vars = []
+        consts, vars_, exvars = load_vars(conf)
+        for i in xrange(nfork):
             ie = {}
             for k, v in exvars.items():
-                ie[k] = v[ifork::nfork]
-            var = (consts, vars_, make_exvars(ie))
-            t = Thread(target=fork_call, args=(run_hakai, (var,), results.append))
-            threads.append(t)
+                ie[k] = v[i::nfork]
+            all_vars.append((consts, vars_, ie))
 
         now = time.time()
-        for t in threads: t.start()
-        for t in threads: t.join()
+        for v, ch in zip(all_vars, multi_chan):
+            ch.send((conf, v))
+        results = multi_chan.receive_each()
         delta = time.time() - now
 
+        SUCC = 0
+        FAIL = 0
+        PATH_TIME = defaultdict(int)
+        PATH_CNT = defaultdict(int)
         for succ, fail, path_time, path_cnt in results:
             SUCC += succ
             FAIL += fail
@@ -433,3 +444,6 @@ def main():
 if __name__ == '__main__':
     logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s")
     main()
+
+elif __name__ == '__channelexec__':
+    remote_hakai(channel)

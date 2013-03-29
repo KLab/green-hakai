@@ -281,12 +281,17 @@ def run_actions(client, conf, vars_, actions):
         succ = action.execute(client, vars_)
 
 
-def hakai(client, nloop, conf, VARS):
+def hakai(client, conf, VARS):
+    global LOOP
     actions = [Action(conf, a) for a in conf['actions']]
     VARS = VarEnv(*VARS)
 
-    for _ in xrange(nloop):
+    while True:
         if STOP:
+            break
+        LOOP -= 1
+        print(LOOP)
+        if LOOP < 0:
             break
         with VARS as vars_:
             run_actions(client, conf, vars_, actions)
@@ -323,9 +328,10 @@ def update_conf(conf, opts):
 
 def run_hakai(conf, all_vars):
     u"""各プロセスで動くmain関数"""
-    global SUCC, FAIL, PATH_TIME, PATH_CNT, STOP
+    global SUCC, FAIL, PATH_TIME, PATH_CNT, STOP, LOOP
     SUCC = 0
     FAIL = 0
+    LOOP = conf['loop'] * conf['max_scenario']
     STOP = False
     PATH_TIME = defaultdict(int)
     PATH_CNT = defaultdict(int)
@@ -349,7 +355,7 @@ def run_hakai(conf, all_vars):
 
     group = gevent.pool.Group()
     for _ in xrange(conf['max_scenario']):
-        group.spawn(hakai, client, conf['loop'], conf, vars_)
+        group.spawn(hakai, client, conf, vars_)
     group.join(conf['total_duration'])
     STOP = True
     group.kill()

@@ -177,6 +177,22 @@ class Action(object):
         self.query_params = conf.get('query_params', {}).items()
         self.headers = conf.get('headers', {})
         self.post_params = conf.get('post_params')
+        self._scan_exp = None
+        scan = action.get('scan')
+        if scan:
+            self._scan_r = re.compile(scan)
+        else:
+            self._scan_r = None
+
+    def _scan(self, response_body, vs):
+        u"""conf['scan'] で指定された正規表現でチェック&変数キャプチャする"""
+        if not self._scan_r:
+            return True
+        m = self._scan_r.search(response_body)
+        if not m:
+            return False
+        vs.update(m.groupdict(''))
+        return True
 
     def _replace_names(self, s, v, _sub_name=re.compile('%\((.+?)\)%').sub):
         return _sub_name(lambda m: v[m.group(1)], s)
@@ -195,6 +211,8 @@ class Action(object):
 
         #: realpath - 変数展開した実際にアクセスするURL
         real_path = self._replace_names(path, vars_)
+        print(vars_)
+        print(real_path)
 
         if method == 'POST' and self.post_params is not None:
             post_params = [(k, self._replace_names(v, vars_))
@@ -207,20 +225,20 @@ class Action(object):
 
         while 1:  # リダイレクトループ
             if query_params:
-                if '?' in path:
-                    p1, p2 = path.split('?')
+                if '?' in real_path:
+                    p1, p2 = real_path.split('?')
                     p2 = urlparse.parse_qsl(p2) + query_params
                 else:
-                    p1 = path
+                    p1 = real_path
                     p2 = query_params
                 p2 = urllib.urlencode(p2)
-                path = p1 + '?' + p2
+                real_path = p1 + '?' + p2
 
-            debug("%s %s %s", method, path, body[:20])
+            debug("%s %s %s", method, real_path, body[:20])
             t = time.time()
             try:
                 timeout = False
-                response = client.request(method, path, body, header)
+                response = client.request(method, real_path, body, header)
                 response_body = response.read()
             except (gevent.timeout, gevent.socket.timeout):
                 timeout = True
@@ -252,7 +270,14 @@ class Action(object):
             else:
                 path = real_path = frag.path
 
-        if not timeout and response and response.status_code // 10 == 20:
+        if timeout:
+            succ = False
+        elif not (response and response.status_code // 10 == 20):
+            succ = False
+        else:
+            succ = self._scan(response_body, vars_)
+
+        if succ:
             global SUCC
             SUCC += 1
             ok()

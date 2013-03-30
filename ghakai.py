@@ -386,11 +386,32 @@ def run_hakai(conf, all_vars):
     return SUCC, FAIL, dict(PATH_TIME), dict(PATH_CNT)
 
 
-def remote_hakai(channel):
+def remote_main(channel):
     u"""run_hakai() をリモートで動かすエージェント"""
     conf, vars_ = channel.receive()
     result = run_hakai(conf, vars_)
     channel.send(result)
+
+
+def build_specs(conf, opts):
+    u"""conf, opts から execnet 用の spec を作る"""
+    if opts.fork:
+        return ['popen'] * opts.fork
+    nodes = conf.get('nodes')
+    if not nodes:
+        return ['popen'] * conf.get('fork', 1)
+
+    specs = []
+    for node in nodes:
+        host = node['host']
+        if host == 'localhost':
+            s = 'popen'
+        else:
+            # リモートの Python も同じ場所に有ることを仮定する
+            s = "ssh=" + host + "//python=" + sys.executable
+        specs += [s] * node['proc']
+
+    return specs
 
 
 def main():
@@ -409,14 +430,17 @@ def main():
     loglevel = max(loglevel, 1)
     logging.getLogger().setLevel(loglevel * 10)
 
-    if nfork < 2:
+    specs = build_specs(conf, opts)
+
+    if specs == ['popen']:
+        # ローカル1プロセスの場合は直接実行する.
         now = time.time()
         SUCC, FAIL, PATH_TIME, PATH_CNT = run_hakai(conf, load_vars(conf))
         delta = time.time() - now
     else:
         import execnet
         import ghakai
-        group = execnet.Group(['popen']*nfork)
+        group = execnet.Group(specs)
         multi_chan = group.remote_exec(ghakai)
 
         all_vars = []
@@ -476,4 +500,5 @@ if __name__ == '__main__':
     main()
 
 elif __name__ == '__channelexec__':
-    remote_hakai(channel)
+    # execnet 経由で実行される場合.
+    remote_main(channel)

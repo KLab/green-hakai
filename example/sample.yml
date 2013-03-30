@@ -4,6 +4,14 @@ loop: 1000
 #プロセス数 (default: 1)
 fork: 1
 
+#破壊ノード
+#定義すると fork が無視されます
+nodes:
+    - host: localhost  # localhost の場合は ssh ではなくて popen します
+      proc: 2  # この host で起動するプロセス数
+    - host: ghakai@attacker   # ssh先
+      proc: 4
+
 #プロセスごとのシナリオの並列数. (default: 1)
 #シナリオが実行される回数は fork * loop * max_scenario になる.
 max_scenario: 1

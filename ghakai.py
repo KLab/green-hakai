@@ -420,7 +420,6 @@ def main():
         return
 
     conf = load_conf(args[0])
-    nfork = opts.fork or conf.get('fork', 1)
     update_conf(conf, opts)
 
     loglevel = conf.get("log_level", 3)
@@ -429,6 +428,7 @@ def main():
     logging.getLogger().setLevel(loglevel * 10)
 
     specs = build_specs(conf, opts)
+    procs = len(specs)
 
     if specs == ['popen']:
         # ローカル1プロセスの場合は直接実行する.
@@ -443,10 +443,10 @@ def main():
 
         all_vars = []
         consts, vars_, exvars = load_vars(conf)
-        for i in xrange(nfork):
+        for i in xrange(len(procs)):
             ie = {}
             for k, v in exvars.items():
-                ie[k] = v[i::nfork]
+                ie[k] = v[i::procs]
             all_vars.append((consts, vars_, ie))
 
         now = time.time()
@@ -471,7 +471,7 @@ def main():
     NREQ = SUCC + FAIL
     req_per_sec = NREQ / delta
     print("request count:%d, concurrenry:%d, %f req/s" %
-          (NREQ, conf['max_request'] * nfork, req_per_sec))
+          (NREQ, conf['max_request'] * procs, req_per_sec))
     print("SUCCESS", SUCC)
     print("FAILED", FAIL)
 

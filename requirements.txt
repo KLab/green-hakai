@@ -1,4 +1,4 @@
-https://github.com/downloads/SiteSupport/gevent/gevent-1.0rc2.tar.gz
+https://github.com/downloads/surfly/gevent/gevent-1.0rc2.tar.gz
 https://github.com/KLab/geventhttpclient/tarball/master
 execnet
 PyYaml

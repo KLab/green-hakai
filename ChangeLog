@@ -1,0 +1,6 @@
+0.2
+===
+
+* Support `scan` for actions.
+* Support distributed loadtest.
+* Support `addresslist`. ghakai attack against specified IPs instead of resolve hostname.

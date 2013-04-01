@@ -8,9 +8,9 @@ from ghakai import __version__
 setup(name='green-hakai',
       py_modules=['ghakai'],
       scripts=['ghakai'],
-      version='0.1',
+      version='0.2',
       install_requires=[
-          "gevent>=1.0b4",
+          "gevent>=1.0rc2",
           "geventhttpclient",
           "PyYAML",
           ],

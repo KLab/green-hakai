@@ -4,6 +4,7 @@ from gevent.wsgi import WSGIServer
 import gevent
 import random
 import urlparse
+import sys
 
 def app(env, start_response):
     gevent.sleep(random.random() * 0.1)
@@ -24,5 +25,10 @@ def app(env, start_response):
         start_response("200 OK", header)
     return [res]
 
-server = WSGIServer(('', 8889), app)
-server.serve_forever()
+if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        port = int(sys.argv[1])
+    else:
+        port = 8889
+    server = WSGIServer(('', port), app)
+    server.serve_forever()

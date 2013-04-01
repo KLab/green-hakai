@@ -211,8 +211,6 @@ class Action(object):
 
         #: realpath - 変数展開した実際にアクセスするURL
         real_path = self._replace_names(path, vars_)
-        print(vars_)
-        print(real_path)
 
         if method == 'POST' and self.post_params is not None:
             post_params = [(k, self._replace_names(v, vars_))

@@ -58,3 +58,22 @@ scenario and up to 10 oncurrent requests::
     SUCCESS 80
     FAILED 0
     Average response time[ms]: 127.687591314
+
+``--loop`` (``-s``) multiplies number of scenario execution without increase
+concurrency::
+
+    $ ghakai -n10 minimal.yml
+
+    request count:20, concurrenry:1, 17.875097 req/s
+    SUCCESS 20
+    FAILED 0
+    Average response time[ms]: 55.7971715927
+
+``--total-duration`` (``-d``) limits total execution time (seconds)::
+
+    $ ghakai -n10000 -d3 minimal.yml
+
+    request count:60, concurrenry:1, 19.984147 req/s
+    SUCCESS 60
+    FAILED 0
+    Average response time[ms]: 49.3332505226

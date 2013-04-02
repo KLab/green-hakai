@@ -444,7 +444,7 @@ def main():
 
         all_vars = []
         consts, vars_, exvars = load_vars(conf)
-        for i in xrange(len(procs)):
+        for i in xrange(procs):
             ie = {}
             for k, v in exvars.items():
                 ie[k] = v[i::procs]

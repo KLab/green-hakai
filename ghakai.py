@@ -206,7 +206,8 @@ class Action(object):
         #: path - 変数展開前のURL
         #: この path ごとに集計を行う.
         path = self.path
-        query_params = self.query_params
+        query_params = [(k, self._replace_names(v, vars_))
+                        for (k, v) in self.query_params]
         header = self.headers
 
         #: realpath - 変数展開した実際にアクセスするURL

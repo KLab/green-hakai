@@ -1,15 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
-u"""インターネット破壊の gevent 版.
-
-Ruby の internethakai より機能は少ないですが、 Ruby と gem のセットアップ
-がすぐにできないときはこっちのほうが楽.
-
-Python 2.6 以降に対応.
+"""
+Loadtest for Web applications.
 """
 from __future__ import print_function, division
 
-__version__ = '0.0.1'
+__version__ = '0.4dev'
 
 import gevent.pool
 import geventhttpclient.client

@@ -13,6 +13,7 @@ Contents:
 
    install
    quickstart
+   scenario
 
 .. Indices and tables
    ==================

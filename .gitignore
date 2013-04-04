@@ -1,2 +1,5 @@
 *.pyc
 distribute-*.tar.gz
+build
+dist
+*.egg-info

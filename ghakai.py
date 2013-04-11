@@ -172,7 +172,7 @@ class Action(object):
         #: 全リクエストに付与するクエリー文字列
         self.query_params = conf.get('query_params', {}).items()
         self.headers = conf.get('headers', {})
-        self.post_params = conf.get('post_params')
+        self.post_params = action.get('post_params')
         self._scan_exp = None
         scan = action.get('scan')
         if scan:

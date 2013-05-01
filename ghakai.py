@@ -21,7 +21,8 @@ import time
 import urllib
 import urlparse
 import random
-import socket
+from gevent import socket
+#import socket
 
 
 debug = logging.debug
@@ -51,6 +52,8 @@ class AddressConnectionPool(ConnectionPool):
         """returns (family, socktype, proto, cname, addr)"""
         if not self.addresses:
             self.addresses = ConnectionPool._resolve(self)
+            for addr in self.addresses:
+                debug("Resolved: %s", addr)
         random.shuffle(self.addresses)
         return self.addresses
 

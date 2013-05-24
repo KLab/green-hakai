@@ -22,7 +22,6 @@ import urllib
 import urlparse
 import random
 from gevent import socket
-#import socket
 
 
 debug = logging.debug
@@ -232,6 +231,10 @@ class Action(object):
                 p2 = urllib.urlencode(p2)
                 real_path = p1 + '?' + p2
 
+            cookies = vars_.setdefault('__cookies__', {})
+            if cookies:
+                header['Cookie'] = '; '.join([h + '=' + v for h, v in cookies.items()])
+
             debug("%s %s %s", method, real_path, body[:20])
             t = time.time()
             try:
@@ -249,6 +252,12 @@ class Action(object):
             finally:
                 # t はエラー時も使われるので常に計測する.
                 t = time.time() - t
+                if response is not None:
+                    for response_header, response_header_val in response.items():
+                        if response_header == 'set-cookie':
+                            name, val = response_header_val.split(';')[0].strip().split('=')
+                            cookies[name] = val
+
 
             PATH_TIME[path] += t
             PATH_CNT[path] += 1

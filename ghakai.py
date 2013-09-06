@@ -479,8 +479,8 @@ def main():
     print()
     NREQ = SUCC + FAIL
     req_per_sec = NREQ / delta
-    print("request count:%d, concurrenry:%d, %f req/s" %
-          (NREQ, conf['max_request'] * procs, req_per_sec))
+    print("request count:%d, concurrency:%d, time:%f, %f req/s" %
+          (NREQ, conf['max_request'] * procs, delta, req_per_sec))
     print("SUCCESS", SUCC)
     print("FAILED", FAIL)
 

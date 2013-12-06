@@ -31,6 +31,7 @@ error = logging.error
 
 SUCC = FAIL = 0
 STOP = False
+PATH_TIME = PATH_CNT = None
 
 
 class AddressConnectionPool(ConnectionPool):
@@ -206,7 +207,9 @@ class Action(object):
         path = self.path
         query_params = [(k, self._replace_names(v, vars_))
                         for (k, v) in self.query_params]
-        header = self.headers
+        header = self.headers.copy()
+        for k in header:
+            header[k] = self._replace_names(header[k], vars_)
 
         #: realpath - 変数展開した実際にアクセスするURL
         real_path = self._replace_names(path, vars_)
@@ -215,7 +218,6 @@ class Action(object):
             post_params = [(k, self._replace_names(v, vars_))
                            for (k, v) in self.post_params.items()]
             body = urllib.urlencode(post_params)
-            header = header.copy()
             header['Content-Type'] = 'application/x-www-form-urlencoded'
         else:
             body = b''
@@ -257,7 +259,6 @@ class Action(object):
                         if response_header == 'set-cookie':
                             name, val = response_header_val.split(';')[0].strip().split('=')
                             cookies[name] = val
-
 
             PATH_TIME[path] += t
             PATH_CNT[path] += 1

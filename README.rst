@@ -11,18 +11,12 @@ gevent と geventhttpclient を使ったインターネット破壊の軽量版�
 インストール
 ---------------
 
-ghakai.py を動かすために必要なライブラリを、 virtualenv をつかって構築する例です。
-``$HOME/ghakai`` に virtualenv を作成し、 ``$HOME/ghakai/bin/python`` を使って
-``ghakai.py`` を実行可能にしています.
-
 ::
 
-    $ python virtualenv.py $HOME/ghakai
-    $ source $HOME/ghakai/bin/activate
-    (ghakai)$ pip install -r requirements.txt
+    pip install https://github.com/KLab/green-hakai/archive/master.zip
 
-ghakai.py の shebang を、 ``#!$HOME/ghakai/bin/python`` に書き換えてください。
-(もちろん、 ``$HOME`` の部分は各自のホームディレクトリに書き換えてくださいね)
+`virtualenv <http://www.virtualenv.org/>`_ の利用を推奨します。
+(`virtualenv のインストール手順 <http://www.virtualenv.org/en/latest/virtualenv.html#installation>`_)
 
 
 設定ファイル

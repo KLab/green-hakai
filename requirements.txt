@@ -1,4 +1,4 @@
 gevent==1.0
-https://github.com/gwik/geventhttpclient/tarball/master
+https://github.com/gwik/geventhttpclient/tarball/master#egg=geventhttpclient
 execnet
 PyYaml

@@ -10,7 +10,7 @@ setup(name='green-hakai',
       scripts=['ghakai'],
       version=__version__,
       install_requires=[
-          "gevent>=1.0rc2",
+          "gevent",
           "geventhttpclient",
           "PyYAML",
           ],

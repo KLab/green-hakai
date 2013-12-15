@@ -1,4 +1,4 @@
 gevent==1.0
-https://github.com/KLab/geventhttpclient/tarball/master
+https://github.com/gwik/geventhttpclient/tarball/master
 execnet
 PyYaml

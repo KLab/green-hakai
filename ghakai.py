@@ -44,9 +44,9 @@ class AddressConnectionPool(ConnectionPool):
             if ':' in addr:
                 addr, port = addr.split(':')
                 port = int(port)
-                cls.addresses += socket.getaddrinfo(
-                        addr, port,
-                        socket.AF_INET, socket.SOCK_STREAM, socket.SOL_TCP, 0)
+            cls.addresses += socket.getaddrinfo(
+                    addr, port,
+                    socket.AF_INET, socket.SOCK_STREAM, socket.SOL_TCP, 0)
 
     def _resolve(self):
         """returns (family, socktype, proto, cname, addr)"""

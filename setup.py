@@ -1,14 +1,15 @@
+#!/usr/bin/env python
 try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
 
-from ghakai import __version__
+from greenload import __version__
 
-setup(name='green-hakai',
-      py_modules=['ghakai'],
-      scripts=['ghakai'],
+setup(name='greenload',
       version=__version__,
+      packages=['greenload'],
+      scripts=['ghakai'],
       install_requires=[
           "gevent",
           "geventhttpclient",

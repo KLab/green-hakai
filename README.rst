@@ -1,7 +1,8 @@
 インターネット破壊(gevent)
 =============================
 
-gevent と geventhttpclient を使ったインターネット破壊の軽量版です。
+`gevent <http://www.gevent.org/>`_ と `geventhttpclient <https://github.com/gwik/geventhttpclient>`_
+を使ったインターネット破壊の軽量版です。
 
 インターネット破壊に比べてソースが読みやすいので、前回のリクエストの
 レスポンスを使って次のリクエストを投げるようなシナリオを作るなどの

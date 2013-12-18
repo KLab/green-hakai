@@ -494,7 +494,7 @@ def main():
         total_cnt += cnt
         total_time += t
 
-    print("Average response time[ms]:", 1000*total_time/total_cnt)
+    print("Average response time[ms]:", 1000*total_time/total_cnt if total_cnt else '-')
     if conf.get('show_report'):
         ranking = int(conf.get('ranking', 20))
         print("Average response time for each path (order by longest) [ms]:")

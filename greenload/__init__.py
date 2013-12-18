@@ -241,6 +241,7 @@ class Action(object):
             t = time.time()
             try:
                 timeout = False
+                response = None
                 response = client.request(method, real_path, body, header)
                 response_body = response.read()
             except (gevent.timeout, gevent.socket.timeout):

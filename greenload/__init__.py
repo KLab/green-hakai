@@ -175,6 +175,8 @@ class Action(object):
         #: 全リクエストに付与するクエリー文字列
         self.query_params = conf.get('query_params', {}).items()
         self.headers = conf.get('headers', {})
+        self.content = action.get('content')
+        self.content_type = action.get('content_type')
         self.post_params = action.get('post_params')
         self._scan_exp = None
         scan = action.get('scan')
@@ -214,7 +216,10 @@ class Action(object):
         #: realpath - 変数展開した実際にアクセスするURL
         real_path = self._replace_names(path, vars_)
 
-        if method == 'POST' and self.post_params is not None:
+        if method == 'POST' and self.content is not None:
+            body = self._replace_names(self.content, vars_)
+            header['Content-Type'] = self._replace_names(self.content_type, vars_)
+        elif method == 'POST' and self.post_params is not None:
             post_params = [(k, self._replace_names(v, vars_))
                            for (k, v) in self.post_params.items()]
             body = urllib.urlencode(post_params)

@@ -77,3 +77,7 @@ actions:
       post_params:
         v: "%(var)%"
         c2: "%(c2)%"
+    - path: /bar
+      method: POST
+      content: '{"v":"%(var)%","c2":"%(c2)%"}'
+      content_type: 'application/json'

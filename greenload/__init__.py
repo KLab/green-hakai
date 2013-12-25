@@ -453,9 +453,9 @@ def main():
         delta = time.time() - now
     else:
         import execnet
-        import ghakai
+        import greenload
         group = execnet.Group(specs)
-        multi_chan = group.remote_exec(ghakai)
+        multi_chan = group.remote_exec(greenload)
 
         all_vars = []
         consts, vars_, exvars = load_vars(conf)

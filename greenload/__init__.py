@@ -363,6 +363,10 @@ def update_conf(conf, opts):
     conf['loop'] = int(opts.loop or conf.get('loop', 1))
     conf['total_duration'] = opts.total_duration or conf.get('total_duration')
 
+    loglevel = conf.get("log_level", 3)
+    loglevel += opts.quiet - opts.verbose
+    loglevel = max(loglevel, 1)
+    conf['real_log_level'] = loglevel * 10 # loggingのログレベル数値に準拠
 
 def run_hakai(conf, all_vars):
     u"""各プロセスで動くmain関数"""
@@ -373,6 +377,8 @@ def run_hakai(conf, all_vars):
     STOP = False
     PATH_TIME = defaultdict(int)
     PATH_CNT = defaultdict(int)
+
+    logging.getLogger().setLevel(conf['real_log_level'])
 
     addresslist = conf.get('addresslist')
     if addresslist:
@@ -438,10 +444,7 @@ def main():
     conf = load_conf(args[0])
     update_conf(conf, opts)
 
-    loglevel = conf.get("log_level", 3)
-    loglevel += opts.quiet - opts.verbose
-    loglevel = max(loglevel, 1)
-    logging.getLogger().setLevel(loglevel * 10)
+    logging.getLogger().setLevel(conf['real_log_level'])
 
     specs = build_specs(conf, opts)
     procs = len(specs)
